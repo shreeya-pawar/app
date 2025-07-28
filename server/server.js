@@ -2,7 +2,6 @@ const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const { Server } = require('socket.io');
-const path = require('path'); // ✅ Required to serve frontend
 
 const app = express();
 const server = http.createServer(app);
@@ -21,13 +20,7 @@ let students = {}; // { socket.id: { name } }
 let chatMessages = [];
 let pollTimer = null;
 
-// ✅ Serve static files from React build
-app.use(express.static(path.join(__dirname, 'client', 'build')));
 
-// ✅ For any other route, serve index.html (SPA routing)
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'client', 'build', 'index.html'));
-});
 
 io.on('connection', (socket) => {
   console.log('New socket connected:', socket.id);
