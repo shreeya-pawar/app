@@ -2,13 +2,14 @@ const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const { Server } = require('socket.io');
+const path = require('path'); // ✅ Required to serve frontend
 
 const app = express();
 const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "https://app-gamma-pearl.vercel.app/",
+    origin: "https://app-gamma-pearl.vercel.app", 
     methods: ['GET', 'POST'],
   },
 });
@@ -20,31 +21,34 @@ let students = {}; // { socket.id: { name } }
 let chatMessages = [];
 let pollTimer = null;
 
+// ✅ Serve static files from React build
+app.use(express.static(path.join(__dirname, 'client', 'build')));
+
+// ✅ For any other route, serve index.html (SPA routing)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'client', 'build', 'index.html'));
+});
+
 io.on('connection', (socket) => {
   console.log('New socket connected:', socket.id);
 
-  // Student joins
   socket.on('student_join', (name) => {
     students[socket.id] = { name };
     console.log(`Student joined: ${name} (${socket.id})`);
 
-    // Send current question if exists
     if (currentQuestion) {
       socket.emit('question', currentQuestion);
     }
 
-    // Notify all about updated participants
     io.emit('update_students', Object.entries(students).map(([id, data]) => ({
       id,
       name: data.name,
     })));
   });
 
-  // Teacher asks a new question
   socket.on('ask_question', (questionData) => {
     console.log('Teacher asked:', questionData.question);
 
-    // Clear any previous timer
     if (pollTimer) clearInterval(pollTimer);
 
     currentQuestion = {
@@ -58,7 +62,6 @@ io.on('connection', (socket) => {
     let remaining = currentQuestion.duration;
     console.log(`Poll timer started for ${remaining} seconds`);
 
-    // Emit timer tick every second
     pollTimer = setInterval(() => {
       remaining--;
       io.emit('timer_tick', remaining);
@@ -90,7 +93,6 @@ io.on('connection', (socket) => {
     }, 1000);
   });
 
-  // Student submits an answer
   socket.on('student_answer', (data) => {
     console.log(`Answer from ${data.name}: option ${data.option}`);
     responses.push({
@@ -99,13 +101,11 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Chat message
   socket.on('send_message', (msg) => {
     chatMessages.push(msg);
     io.emit('receive_message', msg);
   });
 
-  // Manual result fetch (optional)
   socket.on('get_results', () => {
     if (!currentQuestion) return;
 
@@ -125,7 +125,6 @@ io.on('connection', (socket) => {
     socket.emit('poll_results', resultPayload);
   });
 
-  // Kick a student by name
   socket.on('kick_student', ({ name }) => {
     const idToKick = Object.keys(students).find(
       (id) => students[id].name === name
@@ -146,7 +145,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle disconnect
   socket.on('disconnect', () => {
     console.log('Socket disconnected:', socket.id);
     delete students[socket.id];
@@ -158,6 +156,7 @@ io.on('connection', (socket) => {
   });
 });
 
+// ✅ Start server
 server.listen(5000, () => {
   console.log('Server running on http://localhost:5000');
 });
